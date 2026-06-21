@@ -2,20 +2,20 @@
 
 ## Workshop overview
 
-In this workshop, you will create an Azure DocumentDB cluster, connect from VS Code and `mongosh`, load sample data, run basic CRUD commands, create indexes, run migration steps, explore search and RAG, run local AI agents, review performance/security, and clean up.
+In this workshop, you will create an Azure DocumentDB cluster, connect from VS Code and `mongosh`, load sample data, run CRUD commands, create indexes, run a migration workflow, explore full-text and vector search, build a simple RAG flow, run local AI agents, review MCP/Copilot integration, and clean up.
 
-This guide is written so a first-time Azure Portal user can follow it step by step.
+The guide is written for participants who may be new to Azure Portal, VS Code extensions, MongoDB commands, and AI search concepts. Every hands-on step includes what to click, what to paste, and what result to expect.
 
 ## Collections used in this workshop
 
 | Collection | Records | How data is loaded | Purpose |
 |---|---:|---|---|
-| `mobiles` | 5 manual demo records, or 30 sample records | `insertMany` first, script later | CRUD, aggregation, indexing, MobileAdvisor |
-| `support_articles` | 30 | Import from `sample-docs` | File import practice |
-| `retail_offers` | 30 | Import from `sample-docs` | RetailOfferFinder |
-| `supportInc` | 5 | Script or copy/paste | Keyword, full-text, vector search, and RAG |
+| `mobiles` | 5 manual demo records, then 30 sample records | `insertMany` first, script later | CRUD, aggregation, indexing, and MobileAdvisor |
+| `support_articles` | 30 | Imported from `sample-docs` using VS Code GUI | File import practice |
+| `retail_offers` | 30 | Imported from `sample-docs` using VS Code GUI or loaded by script | RetailOfferFinder |
+| `supportInc` | 5 | Loaded by script from `sample-docs` | Keyword search, full-text search, vector search, and RAG |
 
-All scripts use the same `.env` file. You only enter connection details and Azure OpenAI details once.
+All scripts use the same `.env` file. You enter DocumentDB and Azure OpenAI details once, then reuse them for the full workshop.
 
 ## Full-day agenda
 
@@ -26,11 +26,22 @@ All scripts use the same `.env` file. You only enter connection details and Azur
 | 11:15-13:00 | Slot 2 | Data modeling, import, CRUD, query planning, aggregation, and indexing |
 | 13:00-13:30 | Break | Lunch break |
 | 13:30-14:15 | Slot 3 | MongoDB to Azure DocumentDB migration |
-| 14:15-15:15 | Hands-on Lab | Migration using VS Code extension; optional `mongodump`/`mongorestore` instructor demo |
+| 14:15-15:15 | Hands-on Lab | Migration using the Azure DocumentDB VS Code extension |
 | 15:15-16:00 | Slot 4 | Search capabilities, AI workloads, agents, and RAG patterns |
 | 16:00-17:00 | Hands-on Lab | Full-text search, vector search, hybrid search, and RAG |
 | 17:00-17:15 | Updates | MCP Server plus GitHub Copilot integration and latest updates |
 | 17:15-17:30 | Close | Wrap-up and Q&A |
+
+## Module map
+
+| Module | Folder | What you do |
+|---|---|---|
+| 0 | This runbook | Verify prerequisites |
+| 1 | `1-Introduction-to-Azure-DocumentDB` | Understand the workshop and clone the repo |
+| 2 | `2-Azure-DocumentDB-Cluster-Setup-and-Connectivity` | Create the Azure DocumentDB cluster and connect |
+| 3 | `3-Data-Modeling-Data-Import-Querying-and-Indexing` | Create collections, run CRUD, import data, aggregate, and index |
+| 4 | `4-Migration-to-Azure-DocumentDB` | Run migration assessment, offline migration, online migration, and cutover |
+| 5 | `5-Search-AI-Workloads-Agents-and-RAG` | Run keyword, full-text, vector, hybrid, RAG, agents, MCP/Copilot, performance, security, and cleanup |
 
 ---
 
@@ -60,7 +71,9 @@ Close and reopen PowerShell, then run the version checks again.
 
 ---
 
-# Module 1: Clone the workshop repository
+# Module 1: Introduction and repository setup
+
+## 1.1 Clone the workshop repository
 
 1. Open **VS Code**.
 2. Press `Ctrl+Shift+P`.
@@ -100,9 +113,19 @@ sample-docs
 scripts
 ```
 
+## 1.2 What this repository contains
+
+| Item | Purpose |
+|---|---|
+| `END-TO-END-WORKSHOP-RUNBOOK.md` | Complete participant guide |
+| Numbered module folders | Shorter module-specific guides |
+| `sample-docs` | JSON data files used in labs |
+| `scripts` | Helper scripts that read the same `.env` file |
+| `.env.template` | Template for DocumentDB and Azure OpenAI settings |
+
 ---
 
-# Module 2: Create Azure DocumentDB
+# Module 2: Azure DocumentDB cluster setup and connectivity
 
 ## 2.1 Open Azure Portal
 
@@ -113,12 +136,12 @@ scripts
    https://portal.azure.com
    ```
 
-3. Sign in.
+3. Sign in with your workshop Azure account.
 4. Wait for the Azure Portal home page to load.
 
-## 2.2 Start DocumentDB creation
+## 2.2 Start Azure DocumentDB creation
 
-1. Use the top search bar.
+1. Use the search bar at the top of Azure Portal.
 2. Type:
 
    ```text
@@ -128,36 +151,34 @@ scripts
 3. Click **Azure DocumentDB with MongoDB compatibility**.
 4. Click **Create**.
 
-## 2.3 Fill the Basics page
+## 2.3 Fill the cluster creation form
 
-Use the values provided by your instructor or sponsor.
+Use the instructor-provided subscription and resource group. Create a new resource group only if the sponsor or instructor confirms that you should.
 
-| Field | Value |
-|---|---|
-| Subscription | Select your assigned subscription |
-| Resource group | Use the assigned resource group; create one only if sponsor confirms |
-| Cluster name | `az-docdb-workshop-<yourname>` |
-| Region | Use the instructor-provided region |
-| MongoDB version | Latest available |
-| High availability | Disabled for workshop |
-| Cluster tier | Use instructor-provided tier; vector search may require M30 or higher |
-| Storage | 128 GB |
+| Portal field | Workshop value | Explanation |
+|---|---|---|
+| Subscription | Select your assigned subscription | This controls where the resource is billed |
+| Resource group | Use assigned group, or create one only if confirmed | Keeps workshop resources together |
+| Cluster name | `az-docdb-workshop-<yourname>` | Must be globally unique |
+| Region | `Central US`, or the region provided by instructor | Use the same region for related resources when possible |
+| MongoDB version | Latest available | Use the default latest version |
+| High availability | Disabled | This is a temporary workshop environment |
+| Cluster tier | Click **Configure**, select **M30**, keep default cores/RAM shown by portal | M30 is used so vector-search labs work consistently |
+| Storage | 32 GB | Enough for this workshop |
+
+When you reach the networking section during creation, select the workshop-friendly option that allows public access for the lab. Because this is a temporary workshop environment and will be cleaned up, the instructor may ask you to use a broad range. If asked, enter:
+
+```text
+0.0.0.0 - 255.255.255.255
+```
+
+Important: this broad range is only for the temporary workshop. In production, use selected IPs, private networking, and least-privilege access.
 
 Click **Review + create**, then **Create**.
 
 Wait for deployment to complete, then click **Go to resource**.
 
-## 2.4 Configure networking
-
-1. Open your DocumentDB resource.
-2. Click **Networking**.
-3. Select access from selected IP addresses.
-4. Click **Add current client IP address**.
-5. Click **Save**.
-
-Do not use a broad IP range such as `0.0.0.0 - 255.255.255.255` unless the instructor explicitly asks for temporary lab access.
-
-## 2.5 Copy connection string
+## 2.4 Copy connection string
 
 1. In the DocumentDB resource, click **Connection strings**.
 2. Copy the primary or global read-write connection string.
@@ -171,13 +192,9 @@ mongodb+srv://<username>:<password>@<cluster-name>.mongocluster.cosmos.azure.com
 
 Do not share real connection strings in screenshots, chat, slides, or commits.
 
----
+## 2.5 One-time local environment setup
 
-# Module 3: One-time local environment setup
-
-Run these commands from the repository root.
-
-## 3.1 Create Python environment
+Run these commands from the repository root:
 
 ```powershell
 python -m venv .venv
@@ -193,7 +210,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 ```
 
-## 3.2 Create `.env`
+Create `.env`:
 
 ```powershell
 Copy-Item .env.template .env
@@ -214,31 +231,20 @@ AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
 EMBEDDING_DIMENSIONS=1536
 ```
 
-Important:
+Rules:
 
 - Do not add quotes.
 - Do not add spaces before or after `=`.
 - Save the file.
 - Do not commit `.env`.
 
-## 3.3 Check `.env`
+Check `.env`:
 
 ```powershell
 python .\scripts\check_env.py
 ```
 
-Expected:
-
-```text
-Environment check passed.
-DOCUMENTDB_DATABASE=Workshop_DB
-```
-
----
-
-# Module 4: Connect to Azure DocumentDB
-
-## 4.1 Connect from VS Code
+## 2.6 Connect from VS Code
 
 1. In VS Code, click **Extensions**.
 2. Search:
@@ -254,7 +260,7 @@ DOCUMENTDB_DATABASE=Workshop_DB
 7. Paste the DocumentDB connection string.
 8. Press **Enter**.
 
-## 4.2 Connect from mongosh
+## 2.7 Connect from mongosh
 
 Print the command from `.env`:
 
@@ -279,7 +285,9 @@ Expected:
 
 ---
 
-# Module 5: Create collections
+# Module 3: Data modeling, import, querying, and indexing
+
+## 3.1 Create collections
 
 Inside `mongosh`, run:
 
@@ -303,92 +311,31 @@ supportInc
 support_articles
 ```
 
----
-
-# Module 6: Basic query and CRUD using `mobiles`
+## 3.2 Insert records into `mobiles`
 
 This first lab uses manual `insertMany` so you can see exactly what is inserted.
 
-## 6.1 Insert records
-
 ```javascript
 db.mobiles.insertMany([
-  {
-    productId: "MOB-001",
-    title: "Samsung Galaxy S24",
-    brand: "Samsung",
-    segment: "Premium",
-    priceInr: 74999,
-    ramGb: 8,
-    storageGb: 256,
-    cameraMp: 50,
-    batteryMah: 4000,
-    inStock: true
-  },
-  {
-    productId: "MOB-002",
-    title: "OnePlus 12",
-    brand: "OnePlus",
-    segment: "Premium",
-    priceInr: 64999,
-    ramGb: 12,
-    storageGb: 256,
-    cameraMp: 50,
-    batteryMah: 5400,
-    inStock: true
-  },
-  {
-    productId: "MOB-003",
-    title: "iPhone 15",
-    brand: "Apple",
-    segment: "Premium",
-    priceInr: 79999,
-    ramGb: 6,
-    storageGb: 128,
-    cameraMp: 48,
-    batteryMah: 3349,
-    inStock: true
-  },
-  {
-    productId: "MOB-004",
-    title: "Redmi Note 13 Pro",
-    brand: "Redmi",
-    segment: "Mid Range",
-    priceInr: 25999,
-    ramGb: 8,
-    storageGb: 128,
-    cameraMp: 200,
-    batteryMah: 5100,
-    inStock: true
-  },
-  {
-    productId: "MOB-005",
-    title: "Realme Narzo 70",
-    brand: "Realme",
-    segment: "Budget",
-    priceInr: 14999,
-    ramGb: 6,
-    storageGb: 128,
-    cameraMp: 50,
-    batteryMah: 5000,
-    inStock: false
-  }
+  { productId: "MOB-001", title: "Samsung Galaxy S24", brand: "Samsung", segment: "Premium", priceInr: 74999, ramGb: 8, storageGb: 256, cameraMp: 50, batteryMah: 4000, inStock: true },
+  { productId: "MOB-002", title: "OnePlus 12", brand: "OnePlus", segment: "Premium", priceInr: 64999, ramGb: 12, storageGb: 256, cameraMp: 50, batteryMah: 5400, inStock: true },
+  { productId: "MOB-003", title: "iPhone 15", brand: "Apple", segment: "Premium", priceInr: 79999, ramGb: 6, storageGb: 128, cameraMp: 48, batteryMah: 3349, inStock: true },
+  { productId: "MOB-004", title: "Redmi Note 13 Pro", brand: "Redmi", segment: "Mid Range", priceInr: 25999, ramGb: 8, storageGb: 128, cameraMp: 200, batteryMah: 5100, inStock: true },
+  { productId: "MOB-005", title: "Realme Narzo 70", brand: "Realme", segment: "Budget", priceInr: 14999, ramGb: 6, storageGb: 128, cameraMp: 50, batteryMah: 5000, inStock: false }
 ])
 ```
 
-## 6.2 Count records
+Count records:
 
 ```javascript
 db.mobiles.countDocuments()
 ```
 
-Expected:
+Expected: `5`.
 
-```text
-5
-```
+## 3.3 Find records
 
-## 6.3 Find records
+Find premium phones and show only useful fields:
 
 ```javascript
 db.mobiles.find(
@@ -397,30 +344,20 @@ db.mobiles.find(
 ).limit(5)
 ```
 
-## 6.4 Insert temporary records for delete demo
+This command filters by `segment`, hides `_id`, returns only selected fields, and limits output.
+
+## 3.4 Insert, update, and delete demo records
+
+Insert temporary demo records:
 
 ```javascript
 db.mobiles.insertMany([
-  {
-    productId: "TEMP-001",
-    title: "Temporary Demo Phone 1",
-    brand: "Demo",
-    segment: "Demo",
-    priceInr: 9999,
-    inStock: true
-  },
-  {
-    productId: "TEMP-002",
-    title: "Temporary Demo Phone 2",
-    brand: "Demo",
-    segment: "Demo",
-    priceInr: 10999,
-    inStock: true
-  }
+  { productId: "TEMP-001", title: "Temporary Demo Phone 1", brand: "Demo", segment: "Demo", priceInr: 9999, inStock: true },
+  { productId: "TEMP-002", title: "Temporary Demo Phone 2", brand: "Demo", segment: "Demo", priceInr: 10999, inStock: true }
 ])
 ```
 
-## 6.5 Update one record
+Update one record:
 
 ```javascript
 db.mobiles.updateOne(
@@ -429,16 +366,7 @@ db.mobiles.updateOne(
 )
 ```
 
-Verify:
-
-```javascript
-db.mobiles.find(
-  { productId: "MOB-005" },
-  { _id: 0, productId: 1, title: 1, inStock: 1, updatedBy: 1 }
-)
-```
-
-## 6.6 Update many records
+Update many records:
 
 ```javascript
 db.mobiles.updateMany(
@@ -447,22 +375,13 @@ db.mobiles.updateMany(
 )
 ```
 
-Verify:
-
-```javascript
-db.mobiles.find(
-  { segment: "Premium" },
-  { _id: 0, title: 1, segment: 1, workshopCategory: 1 }
-)
-```
-
-## 6.7 Delete one temporary record
+Delete one temporary record:
 
 ```javascript
 db.mobiles.deleteOne({ productId: "TEMP-001" })
 ```
 
-## 6.8 Delete remaining temporary records
+Delete remaining temporary records:
 
 ```javascript
 db.mobiles.deleteMany({ segment: "Demo" })
@@ -474,19 +393,15 @@ Verify the count is back to 5:
 db.mobiles.countDocuments()
 ```
 
----
+## 3.5 Load full workshop data
 
-# Module 7: Load full workshop data
-
-The previous module used 5 manual records. Now load the full sample data for the rest of the workshop.
-
-Run from the repository root:
+The previous step used 5 manual records. Now load full sample data for the rest of the workshop:
 
 ```powershell
 python .\scripts\load_workshop_data_base.py
 ```
 
-This script loads data into:
+This loads:
 
 - `mobiles` from `sample-docs\mobiles_sample.json`
 - `support_articles` from `sample-docs\support_articles_sample.json`
@@ -495,7 +410,7 @@ This script loads data into:
 
 It does not create indexes.
 
-Verify in `mongosh`:
+Verify:
 
 ```javascript
 use Workshop_DB
@@ -514,28 +429,34 @@ Expected:
 5
 ```
 
----
+## 3.6 Import a collection from VS Code GUI
 
-# Module 8: Import one collection from sample document
+This step demonstrates GUI import using the DocumentDB extension.
 
-This shows how to import a JSON file using a script.
+1. In VS Code, click the **DocumentDB** icon.
+2. Expand your connected cluster.
+3. Expand `Workshop_DB`.
+4. Right-click `support_articles`.
+5. Click **Import Documents...**.
+6. Select:
 
-```powershell
-python .\scripts\import_sample_collection.py --file .\sample-docs\retail_offers_sample.json --collection retail_offers
-```
+   ```text
+   sample-docs\support_articles_sample.json
+   ```
+
+7. Wait for import to finish.
+8. Right-click `Workshop_DB` and click **Refresh**.
 
 Verify:
 
 ```javascript
-db.retail_offers.countDocuments()
-db.retail_offers.find({}, { _id: 0, title: 1, offers: 1 }).limit(2)
+db.support_articles.countDocuments()
+db.support_articles.find({}, { _id: 0, articleId: 1, title: 1, category: 1 }).limit(5)
 ```
 
----
+## 3.7 Aggregation
 
-# Module 9: Aggregation and indexing
-
-## 9.1 Aggregation
+This aggregation answers: "How many phones are in each segment, and what is the average price per segment?"
 
 ```javascript
 db.mobiles.aggregate([
@@ -544,7 +465,16 @@ db.mobiles.aggregate([
 ])
 ```
 
-## 9.2 Check indexes before creating one
+What to notice:
+
+- `$group` groups phones by segment.
+- `$avg` calculates average price.
+- `$sum` counts phones.
+- `$sort` shows the highest average price first.
+
+## 3.8 Indexing
+
+Check indexes before creating one:
 
 ```javascript
 db.mobiles.getIndexes()
@@ -552,29 +482,29 @@ db.mobiles.getIndexes()
 
 Expected: only `_id_` exists.
 
-## 9.3 Explain plan before index
+Explain plan before index:
 
 ```javascript
 db.mobiles.find({ segment: "Premium" }).explain("executionStats")
 ```
 
-Look for `COLLSCAN`.
+Look for `COLLSCAN`, which means the database scanned the collection.
 
-## 9.4 Create index
+Create index:
 
 ```javascript
 db.mobiles.createIndex({ segment: 1 }, { name: "idx_segment" })
 ```
 
-## 9.5 Explain plan after index
+Explain plan after index:
 
 ```javascript
 db.mobiles.find({ segment: "Premium" }).explain("executionStats")
 ```
 
-Look for `IXSCAN`.
+Look for `IXSCAN`, which means the database used the index.
 
-## 9.6 Create compound index
+Create compound index for filter plus sort:
 
 ```javascript
 db.mobiles.createIndex(
@@ -594,13 +524,13 @@ db.mobiles.find(
 
 ---
 
-# Module 10: Migration using VS Code extension
+# Module 4: Migration to Azure DocumentDB
 
 Use this module during Slot 3.
 
-The instructor or sponsor will provide the temporary MongoDB source connection string during the workshop. Do not commit source credentials into this repository.
+The instructor or sponsor will provide the temporary source MongoDB connection string during the workshop. Do not commit source credentials into this repository.
 
-## 10.1 Connect to source MongoDB
+## 4.1 Connect to source MongoDB
 
 1. Open VS Code.
 2. Open the DocumentDB extension.
@@ -609,7 +539,7 @@ The instructor or sponsor will provide the temporary MongoDB source connection s
 5. Paste the source MongoDB connection string provided by the instructor.
 6. Confirm the source cluster appears.
 
-## 10.2 Run pre-migration assessment
+## 4.2 Run pre-migration assessment
 
 1. Right-click the source MongoDB connection.
 2. Select **Data Migration**.
@@ -619,7 +549,7 @@ The instructor or sponsor will provide the temporary MongoDB source connection s
 6. Start the assessment.
 7. Review unsupported features, warnings, and recommendations.
 
-## 10.3 Run offline migration
+## 4.3 Run offline migration
 
 1. Right-click the source MongoDB connection.
 2. Select **Migrate to Azure DocumentDB**.
@@ -631,7 +561,7 @@ The instructor or sponsor will provide the temporary MongoDB source connection s
 8. Start migration.
 9. Wait for status `Succeeded`.
 
-## 10.4 Validate migrated data
+Validate migrated data:
 
 ```javascript
 use <your_database_name>
@@ -640,29 +570,50 @@ db.getCollectionNames().forEach(function(c) {
 });
 ```
 
-## 10.5 Online migration and cutover
+## 4.4 Start live workload for online migration
 
-For online migration, repeat the migration wizard and choose **Online**. Wait for:
+Before online migration, the instructor will start or share a small workload application that continuously changes source data. This helps demonstrate change replication.
 
-```text
-Ready To Cutover
-```
+Participants should observe that the source data changes while migration is running:
 
-Stop the workload generator, then click **Cutover**.
+- inserts are added
+- updates modify existing records
+- deletes remove records
+- collection counts may change
 
-Final status should be:
+## 4.5 Online migration stages and cutover
 
-```text
-Succeeded
-```
+Repeat the migration wizard and choose **Online**.
+
+You will see these stages:
+
+| Stage | Meaning |
+|---|---|
+| `Provisioning` | Azure prepares migration resources |
+| `Bulk Copy In Progress` | Existing source data is copied to Azure DocumentDB |
+| `Replication In Progress` | New source inserts, updates, and deletes are replicated |
+| `Ready To Cutover` | Target is caught up and ready for final switch |
+| `Completing` | Cutover is being finalized |
+| `Succeeded` | Migration completed successfully |
+
+When status becomes `Ready To Cutover`:
+
+1. Stop the workload generator.
+2. Wait for remaining changes to replicate.
+3. Click **Cutover**.
+4. Wait for `Succeeded`.
+
+Validate target data again after cutover.
 
 ---
 
-# Module 11: Keyword search on `supportInc`
+# Module 5: Search, AI workloads, agents, and RAG
+
+## 5.1 Keyword search on `supportInc`
 
 `supportInc` has 5 simple records so the search behavior is easy to understand.
 
-## 11.1 Keyword search works for exact words
+Keyword search works when the user knows the exact word stored in the document.
 
 ```javascript
 db.supportInc.find(
@@ -671,13 +622,9 @@ db.supportInc.find(
 )
 ```
 
-Expected:
+Expected: `SUP-1001`.
 
-```text
-SUP-1001
-```
-
-## 11.2 Keyword search fails for different wording
+Keyword search can fail when the word is different:
 
 ```javascript
 db.supportInc.find(
@@ -688,13 +635,11 @@ db.supportInc.find(
 
 Expected: no records.
 
-Keyword search compares text literally.
+Why it failed: `login` and `logins` are related for humans, but a regular expression keyword search compares characters. To handle word variations and ranking, use full-text search.
 
----
+## 5.2 Full-text search
 
-# Module 12: Full-text search
-
-## 12.1 Create text index
+Create a text index:
 
 ```javascript
 db.supportInc.createIndex(
@@ -703,40 +648,32 @@ db.supportInc.createIndex(
 )
 ```
 
-## 12.2 Search with text index
+Search with relevance scoring:
 
 ```javascript
 db.supportInc.find(
   { $text: { $search: "password login" } },
-  {
-    _id: 0,
-    ticketId: 1,
-    title: 1,
-    score: { $meta: "textScore" }
-  }
+  { _id: 0, ticketId: 1, title: 1, score: { $meta: "textScore" } }
 ).sort({ score: { $meta: "textScore" } })
 ```
 
-Full-text search is better than keyword search, but it is still mostly word based.
+Full-text search is better than simple keyword search because it tokenizes text and ranks matches. It is still mostly word based. If a user asks with different wording, such as "I cannot access my account after changing my password," vector search is a better fit because it compares meaning.
 
----
+## 5.3 Embeddings explained simply
 
-# Module 13: Embeddings and vector search
+An embedding is a numeric fingerprint of meaning.
 
-An embedding is a list of numbers that represents meaning.
+Analogy: imagine placing sentences on a map. Sentences with similar meaning are placed near each other, even if they use different words.
 
-Example:
+| Sentence | Meaning |
+|---|---|
+| `Unable to login` | Account access problem |
+| `Cannot access my account` | Account access problem |
+| `Database ran out of storage` | Capacity problem |
 
-```text
-"Unable to login"
-"Cannot access my account"
-```
+The first two are close together on the meaning map. Vector search uses this closeness to find relevant records.
 
-These sentences use different words, but their meanings are similar. Embeddings help the database find that similarity.
-
-## 13.1 Generate embeddings
-
-Run:
+Generate embeddings:
 
 ```powershell
 python .\scripts\generate_workshop_embeddings.py
@@ -753,20 +690,37 @@ db.supportInc.findOne(
 
 The `embedding` field stores the vector for each support record.
 
-## 13.2 Create vector index
+## 5.4 Create vector index
 
-Run:
+The script can create the vector index:
 
 ```powershell
 python .\scripts\create_workshop_indexes.py
 ```
 
-The script creates:
+If you want to see the full command, this is what it creates:
 
-- `support_text_idx`
-- `support_vector_idx`
+```javascript
+db.runCommand({
+  createIndexes: "supportInc",
+  indexes: [
+    {
+      name: "support_vector_idx",
+      key: { embedding: "cosmosSearch" },
+      cosmosSearchOptions: {
+        kind: "vector-ivf",
+        similarity: "COS",
+        dimensions: 1536,
+        numLists: 1
+      }
+    }
+  ]
+})
+```
 
-## 13.3 Run vector search
+The `dimensions` value must match `EMBEDDING_DIMENSIONS` in `.env`.
+
+## 5.5 Run vector search
 
 ```powershell
 python .\scripts\vector_search_support.py --query "I changed my password and cannot access my account"
@@ -780,14 +734,14 @@ SUP-1001 | Login failure after password reset
 
 Vector search works because it compares meaning, not just exact words.
 
----
+## 5.6 Hybrid search
 
-# Module 14: Hybrid search
+Hybrid search combines two strengths:
 
-Hybrid search means using both:
-
-- text search for exact/relevant words
-- vector search for semantic meaning
+| Search type | Strength | Example |
+|---|---|---|
+| Full-text search | Exact words and relevance scoring | `password login` |
+| Vector search | Similar meaning with different words | `cannot access my account` |
 
 Run:
 
@@ -795,11 +749,15 @@ Run:
 python .\scripts\hybrid_search_support.py --query "password reset login problem"
 ```
 
-The script prints the text-search command and then runs vector search.
+What the output means:
 
----
+- The text-search command shows how a word-based query would run.
+- The vector-search results show semantic matches.
+- A production hybrid app usually combines both scores into one ranked list.
 
-# Module 15: RAG application
+Why hybrid is useful: if a query contains important exact terms like product names, error codes, or ticket IDs, text search helps preserve precision. If the query uses different wording, vector search helps preserve recall.
+
+## 5.7 RAG application
 
 RAG means Retrieval Augmented Generation.
 
@@ -833,9 +791,7 @@ SUP-1001 | Login failure after password reset
 
 Type `exit` to stop.
 
----
-
-# Module 16: Local AI agents
+## 5.8 Local AI agents
 
 No external repository is used. The agent app runs from this repository only and reads the same `.env`.
 
@@ -851,6 +807,15 @@ Open:
 http://localhost:8080
 ```
 
+What happens between prompt and response:
+
+1. Browser sends your prompt to the local Python app.
+2. The app reads DocumentDB connection details from `.env`.
+3. `MobileAdvisor` queries the `mobiles` collection.
+4. `RetailOfferFinder` queries the `retail_offers` collection.
+5. The app formats matching database records into a simple response.
+6. The browser displays the answer.
+
 Try `MobileAdvisor`:
 
 ```text
@@ -863,24 +828,25 @@ Try `RetailOfferFinder`:
 Where can I buy OnePlus 12?
 ```
 
-Stop the app with:
+Stop the app with `Ctrl+C`.
 
-```text
-Ctrl+C
-```
+## 5.9 MCP Server and GitHub Copilot demo
 
----
+This is an instructor-led demo. Use it to show how Copilot can work with tools without exposing secrets in prompts.
 
-# Module 17: MCP Server and GitHub Copilot update
+Demo idea:
 
-This is an instructor-led update module.
+1. Open the repository in VS Code.
+2. Confirm `.env` exists locally but is ignored by Git.
+3. Ask Copilot to explain what `scripts\validate_workshop_setup.py` does.
+4. Ask Copilot to generate a safe command to validate collections.
+5. Run the command yourself:
 
-Key points:
+   ```powershell
+   python .\scripts\validate_workshop_setup.py
+   ```
 
-1. MCP exposes tools to AI assistants in a structured way.
-2. GitHub Copilot can use configured tools to help with repeatable developer workflows.
-3. Do not paste secrets into Copilot prompts.
-4. Keep connection strings in `.env` or approved secret stores.
+6. Explain that MCP can expose controlled tools to assistants, while secrets stay in local configuration.
 
 Safe prompt example:
 
@@ -888,13 +854,11 @@ Safe prompt example:
 Using the configured workshop environment, show me which collections exist in my database.
 ```
 
----
+Do not paste connection strings, keys, or passwords into Copilot prompts.
 
-# Module 18: Performance review
+## 5.10 Performance review
 
-Use these habits:
-
-## Use projection
+Use projection to return only needed fields:
 
 ```javascript
 db.mobiles.find(
@@ -903,13 +867,13 @@ db.mobiles.find(
 )
 ```
 
-## Use limit
+Use `limit()` to bound results:
 
 ```javascript
 db.mobiles.find({}).limit(5)
 ```
 
-## Use compound indexes for filter plus sort
+Use compound indexes for filter plus sort:
 
 ```javascript
 db.mobiles.createIndex(
@@ -918,7 +882,7 @@ db.mobiles.createIndex(
 )
 ```
 
-## Check query plan
+Check query plan:
 
 ```javascript
 db.mobiles.find({ segment: "Premium" }).explain("executionStats")
@@ -926,16 +890,14 @@ db.mobiles.find({ segment: "Premium" }).explain("executionStats")
 
 Look for `IXSCAN`. If you see `COLLSCAN`, the query is scanning the collection.
 
----
-
-# Module 19: Security review
+## 5.11 Security review
 
 Before finishing:
 
 1. Open Azure Portal.
 2. Open your DocumentDB resource.
 3. Click **Networking**.
-4. Remove broad or temporary IP ranges.
+4. Remove broad or temporary IP ranges if your instructor asks you to keep the cluster after the workshop.
 5. Save changes.
 
 Check that `.env` is not committed:
@@ -952,15 +914,9 @@ Rules:
 - For production, use least-privilege users and Azure Key Vault.
 - For production, enable HA based on business requirements.
 
----
+## 5.12 Cleanup
 
-# Module 20: Cleanup
-
-Stop any running local app:
-
-```text
-Ctrl+C
-```
+Stop any running local app with `Ctrl+C`.
 
 Deactivate Python:
 
@@ -996,7 +952,7 @@ Copy the connection string again from Azure Portal and update `.env`.
 
 ## Network timeout
 
-Add your current IP address in DocumentDB **Networking** and save.
+For the workshop, confirm the portal networking settings match the instructor-provided access approach.
 
 ## Python package missing
 
