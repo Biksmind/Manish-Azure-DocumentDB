@@ -1,0 +1,42 @@
+[
+  {
+    "_id": 1,
+    "ticketId": "SUP-1001",
+    "title": "Login failure after password reset",
+    "description": "User is unable to login after changing account password. Authentication keeps failing.",
+    "category": "Authentication",
+    "priority": "High"
+  },
+  {
+    "_id": 2,
+    "ticketId": "SUP-1002",
+    "title": "Storage quota exceeded during migration",
+    "description": "Database migration process stopped because available storage space was exhausted.",
+    "category": "Migration",
+    "priority": "Critical"
+  },
+  {
+    "_id": 3,
+    "ticketId": "SUP-1003",
+    "title": "Application timeout while uploading files",
+    "description": "Users experience connection timeout errors when transferring large documents.",
+    "category": "Networking",
+    "priority": "Medium"
+  },
+  {
+    "_id": 4,
+    "ticketId": "SUP-1004",
+    "title": "Email notifications not delivered",
+    "description": "System generated emails are not reaching customer inboxes due to mail delivery issues.",
+    "category": "Notifications",
+    "priority": "High"
+  },
+  {
+    "_id": 5,
+    "ticketId": "SUP-1005",
+    "title": "High CPU utilization on database server",
+    "description": "Database server is experiencing unusually high processor consumption during peak workload.",
+    "category": "Performance",
+    "priority": "Critical"
+  }
+]

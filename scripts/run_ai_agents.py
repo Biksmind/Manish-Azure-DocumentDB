@@ -1,69 +1,140 @@
 from __future__ import annotations
 
-import shutil
-import subprocess
-import sys
-from pathlib import Path
+import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import parse_qs
+
+from common import get_database
 
 
-REPO_URL = "https://github.com/Biksmind/DocumentDB_Workshop_0906.git"
-COMPANION_REPO_NAME = "DocumentDB_Workshop_0906"
-AGENTS_RELATIVE_PATH = Path("4-AI-Agents") / "mobile-agents"
+HTML = """
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Azure DocumentDB Workshop Agents</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; max-width: 900px; margin: 32px auto; line-height: 1.5; }
+    textarea { width: 100%; height: 90px; }
+    button { padding: 8px 14px; margin-top: 8px; }
+    pre { background: #f5f5f5; padding: 16px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Azure DocumentDB Workshop Agents</h1>
+  <p>This app runs from the current repository only. It uses your local .env and Azure DocumentDB collections.</p>
+  <label>Agent</label>
+  <select id="agent">
+    <option>MobileAdvisor</option>
+    <option>RetailOfferFinder</option>
+  </select>
+  <p><textarea id="question">Recommend a phone under 50000 for camera and battery</textarea></p>
+  <button onclick="ask()">Ask</button>
+  <pre id="answer">Answer will appear here.</pre>
+  <script>
+    async function ask() {
+      const body = new URLSearchParams();
+      body.set("agent", document.getElementById("agent").value);
+      body.set("question", document.getElementById("question").value);
+      const response = await fetch("/ask", { method: "POST", body });
+      document.getElementById("answer").textContent = await response.text();
+    }
+  </script>
+</body>
+</html>
+"""
 
 
-def ensure_command_exists(cmd: str) -> None:
-    if shutil.which(cmd) is None:
-        raise RuntimeError(f"Required command not found in PATH: {cmd}")
+def mobile_advisor(db, question: str) -> str:
+    query = question.lower()
+    filters: dict = {}
+    if "under 50000" in query or "below 50000" in query:
+        filters["priceInr"] = {"$lte": 50000}
+    if "premium" in query:
+        filters["segment"] = "Premium"
+    if "budget" in query:
+        filters["segment"] = "Budget"
+
+    projection = {"_id": 0, "title": 1, "brand": 1, "segment": 1, "priceInr": 1, "description": 1}
+    results = list(db.mobiles.find(filters, projection).sort("priceInr", 1).limit(5))
+    if not results:
+        return "No matching phones found in the mobiles collection."
+
+    lines = ["MobileAdvisor found these options:"]
+    for item in results:
+        lines.append(
+            f"- {item.get('title')} ({item.get('brand')}) | {item.get('segment')} | INR {item.get('priceInr')}"
+        )
+    return "\n".join(lines)
 
 
-def run_command(args: list[str], cwd: Path | None = None) -> None:
-    subprocess.run(args, cwd=str(cwd) if cwd else None, check=True)
+def retail_offer_finder(db, question: str) -> str:
+    query = question.lower()
+    filter_doc = {}
+    if "flipkart" in query:
+        filter_doc = {"offers.retailer": {"$regex": "Flipkart", "$options": "i"}}
+    elif "amazon" in query:
+        filter_doc = {"offers.retailer": {"$regex": "Amazon", "$options": "i"}}
+    elif "oneplus" in query:
+        filter_doc = {"title": {"$regex": "OnePlus", "$options": "i"}}
+
+    results = list(db.retail_offers.find(filter_doc, {"_id": 0}).limit(5))
+    if not results:
+        return "No matching retail offers found."
+
+    lines = ["RetailOfferFinder found these offers:"]
+    for item in results:
+        lines.append(f"\n{item.get('title')}")
+        for offer in item.get("offers", [])[:3]:
+            lines.append(
+                f"- {offer.get('retailer')} | INR {offer.get('priceInr')} | {offer.get('availability')}"
+            )
+    return "\n".join(lines)
 
 
-def module_available(python_exe: str, module_name: str) -> bool:
-    result = subprocess.run(
-        [python_exe, "-c", f"import {module_name}"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    return result.returncode == 0
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(HTML.encode("utf-8"))
+
+    def do_POST(self) -> None:
+        if self.path != "/ask":
+            self.send_error(404)
+            return
+
+        length = int(self.headers.get("Content-Length", "0"))
+        form = parse_qs(self.rfile.read(length).decode("utf-8"))
+        agent = form.get("agent", ["MobileAdvisor"])[0]
+        question = form.get("question", [""])[0]
+
+        client, db, _ = get_database()
+        try:
+            if agent == "RetailOfferFinder":
+                answer = retail_offer_finder(db, question)
+            else:
+                answer = mobile_advisor(db, question)
+        except Exception as exc:
+            answer = f"Error: {exc}"
+        finally:
+            client.close()
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(answer.encode("utf-8"))
+
+    def log_message(self, format: str, *args) -> None:
+        return
 
 
-def main() -> int:
-    python_exe = sys.executable
-    script_dir = Path(__file__).resolve().parent
-    repo_root = script_dir.parent
-    parent_dir = repo_root.parent
-    companion_repo = parent_dir / COMPANION_REPO_NAME
-    agents_app_dir = companion_repo / AGENTS_RELATIVE_PATH
-
-    try:
-        ensure_command_exists("git")
-
-        if not companion_repo.exists():
-            print("Companion repo not found. Cloning DocumentDB_Workshop_0906...")
-            run_command(["git", "clone", REPO_URL], cwd=parent_dir)
-
-        if not agents_app_dir.exists():
-            raise RuntimeError(f"AI agents app path not found: {agents_app_dir}")
-
-        # First run on a new machine may miss required Python deps for the companion app.
-        if not module_available(python_exe, "dotenv"):
-            requirements_file = companion_repo / "requirements.txt"
-            if not requirements_file.exists():
-                raise RuntimeError(f"requirements.txt not found: {requirements_file}")
-
-            print("Installing companion repo dependencies...")
-            run_command([python_exe, "-m", "pip", "install", "-r", str(requirements_file)], cwd=companion_repo)
-
-        print(f"Starting AI agents app from: {agents_app_dir}")
-        run_command([python_exe, "app.py"], cwd=agents_app_dir)
-        return 0
-    except Exception as exc:  # noqa: BLE001
-        print(f"Error: {exc}", file=sys.stderr)
-        return 1
+def main() -> None:
+    server = HTTPServer(("localhost", 8080), Handler)
+    print("Workshop agents are running at http://localhost:8080")
+    print("Press Ctrl+C to stop.")
+    server.serve_forever()
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()
