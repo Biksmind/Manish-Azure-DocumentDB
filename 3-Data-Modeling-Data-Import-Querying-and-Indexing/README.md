@@ -50,6 +50,23 @@ supportInc: 5
 - `explain("executionStats")`
 - single-field and compound indexes
 
+For update and delete operations, the runbook follows a beginner-safe pattern:
+
+```text
+find the record
+  -> update or delete the record
+  -> run find/count again to verify the result
+```
+
+
+For update and delete operations, the runbook follows a beginner-safe pattern:
+
+```text
+find the record
+  -> update or delete the record
+  -> run find/count again to verify the result
+```
 ## Continue
 
 The full copy/paste command sequence is in [the end-to-end runbook](../END-TO-END-WORKSHOP-RUNBOOK.md).
+

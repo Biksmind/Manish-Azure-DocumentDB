@@ -22,6 +22,36 @@ python .\rag_app.py
 python .\scripts\run_ai_agents.py
 ```
 
+## MCP/Copilot demo
+
+The repository includes a local MCP server:
+
+```text
+scripts\mcp_documentdb_server.py
+```
+
+VS Code can load an MCP JSON configuration that starts this script. Copilot can then call tools such as:
+
+- `list_workshop_collections`
+- `count_workshop_documents`
+
+The MCP server reads the same local `.env` configuration and talks to Azure DocumentDB without requiring users to paste secrets into Copilot prompts.
+
+
+## MCP/Copilot demo
+
+The repository includes a local MCP server:
+
+```text
+scripts\mcp_documentdb_server.py
+```
+
+VS Code can load an MCP JSON configuration that starts this script. Copilot can then call tools such as:
+
+- `list_workshop_collections`
+- `count_workshop_documents`
+
+The MCP server reads the same local `.env` configuration and talks to Azure DocumentDB without requiring users to paste secrets into Copilot prompts.
 ## Search concept summary
 
 | Search type | Best for |
@@ -35,3 +65,4 @@ python .\scripts\run_ai_agents.py
 ## Continue
 
 Use [the end-to-end runbook](../END-TO-END-WORKSHOP-RUNBOOK.md) for detailed copy/paste steps and explanations.
+

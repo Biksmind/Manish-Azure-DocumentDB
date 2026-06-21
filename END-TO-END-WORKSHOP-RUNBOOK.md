@@ -217,17 +217,34 @@ Copy-Item .env.template .env
 notepad .env
 ```
 
-Fill in the values:
+Fill in the values. The database does not need to exist before you set this value. `Workshop_DB` is the database name that the next modules and scripts will create/use when they first create collections and load data.
 
 ```text
+# Azure DocumentDB connection string copied from Azure Portal.
 DOCUMENTDB_CONNECTION_STRING=<paste-your-documentdb-connection-string>
+
+# Database name used by all workshop scripts.
+# It will be created automatically when you create collections or load data.
 DOCUMENTDB_DATABASE=Workshop_DB
 
+# Azure OpenAI resource endpoint.
+# Keep the format exactly like this: https://<resource-name>.openai.azure.com/
 AZURE_OPENAI_ENDPOINT=https://<your-openai-resource>.openai.azure.com/
+
+# Azure OpenAI key from the Azure OpenAI resource.
 AZURE_OPENAI_API_KEY=<paste-your-azure-openai-key>
+
+# API version used by the OpenAI Python SDK.
 AZURE_OPENAI_API_VERSION=2024-12-01-preview
+
+# Chat model deployment name used by the RAG app to generate final answers.
 AZURE_OPENAI_CHAT_DEPLOYMENT=gpt-4.1-mini
+
+# Embedding model deployment name used to convert text into vectors.
 AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
+
+# Number of values in each embedding vector.
+# This must match the embedding model output and the vector index dimensions.
 EMBEDDING_DIMENSIONS=1536
 ```
 
@@ -357,7 +374,16 @@ db.mobiles.insertMany([
 ])
 ```
 
-Update one record:
+Before updating one record, find the current value:
+
+```javascript
+db.mobiles.find(
+  { productId: "MOB-005" },
+  { _id: 0, productId: 1, title: 1, inStock: 1, updatedBy: 1 }
+)
+```
+
+Now update one record:
 
 ```javascript
 db.mobiles.updateOne(
@@ -366,7 +392,25 @@ db.mobiles.updateOne(
 )
 ```
 
-Update many records:
+Verify the update:
+
+```javascript
+db.mobiles.find(
+  { productId: "MOB-005" },
+  { _id: 0, productId: 1, title: 1, inStock: 1, updatedBy: 1 }
+)
+```
+
+Before updating many records, find the records that match:
+
+```javascript
+db.mobiles.find(
+  { segment: "Premium" },
+  { _id: 0, productId: 1, title: 1, segment: 1, workshopCategory: 1 }
+)
+```
+
+Now update many records:
 
 ```javascript
 db.mobiles.updateMany(
@@ -375,13 +419,46 @@ db.mobiles.updateMany(
 )
 ```
 
-Delete one temporary record:
+Verify the update:
+
+```javascript
+db.mobiles.find(
+  { segment: "Premium" },
+  { _id: 0, productId: 1, title: 1, segment: 1, workshopCategory: 1 }
+)
+```
+
+Before deleting one temporary record, find it:
+
+```javascript
+db.mobiles.find(
+  { productId: "TEMP-001" },
+  { _id: 0, productId: 1, title: 1, segment: 1 }
+)
+```
+
+Now delete one temporary record:
 
 ```javascript
 db.mobiles.deleteOne({ productId: "TEMP-001" })
 ```
 
-Delete remaining temporary records:
+Verify it is gone:
+
+```javascript
+db.mobiles.find({ productId: "TEMP-001" })
+```
+
+Before deleting the remaining temporary records, find them:
+
+```javascript
+db.mobiles.find(
+  { segment: "Demo" },
+  { _id: 0, productId: 1, title: 1, segment: 1 }
+)
+```
+
+Now delete remaining temporary records:
 
 ```javascript
 db.mobiles.deleteMany({ segment: "Demo" })
@@ -429,32 +506,7 @@ Expected:
 5
 ```
 
-## 3.6 Import a collection from VS Code GUI
-
-This step demonstrates GUI import using the DocumentDB extension.
-
-1. In VS Code, click the **DocumentDB** icon.
-2. Expand your connected cluster.
-3. Expand `Workshop_DB`.
-4. Right-click `support_articles`.
-5. Click **Import Documents...**.
-6. Select:
-
-   ```text
-   sample-docs\support_articles_sample.json
-   ```
-
-7. Wait for import to finish.
-8. Right-click `Workshop_DB` and click **Refresh**.
-
-Verify:
-
-```javascript
-db.support_articles.countDocuments()
-db.support_articles.find({}, { _id: 0, articleId: 1, title: 1, category: 1 }).limit(5)
-```
-
-## 3.7 Aggregation
+## 3.6 Aggregation
 
 This aggregation answers: "How many phones are in each segment, and what is the average price per segment?"
 
@@ -472,7 +524,7 @@ What to notice:
 - `$sum` counts phones.
 - `$sort` shows the highest average price first.
 
-## 3.8 Indexing
+## 3.7 Indexing
 
 Check indexes before creating one:
 
@@ -832,21 +884,77 @@ Stop the app with `Ctrl+C`.
 
 ## 5.9 MCP Server and GitHub Copilot demo
 
-This is an instructor-led demo. Use it to show how Copilot can work with tools without exposing secrets in prompts.
+This is an instructor-led demo that shows something special: VS Code can load MCP server definitions from JSON, and Copilot can use those MCP tools to talk to Azure DocumentDB through a controlled local tool layer.
 
-Demo idea:
+Important idea:
 
-1. Open the repository in VS Code.
-2. Confirm `.env` exists locally but is ignored by Git.
-3. Ask Copilot to explain what `scripts\validate_workshop_setup.py` does.
-4. Ask Copilot to generate a safe command to validate collections.
-5. Run the command yourself:
+- Copilot does not need the connection string in the prompt.
+- The MCP server reads configuration from local files or environment variables.
+- The MCP tool performs the database action.
+- Copilot receives only the tool result that the MCP server returns.
+
+### Demo flow
+
+1. Open this repository in VS Code.
+2. Confirm `.env` exists locally and is ignored by Git:
+
+   ```powershell
+   git status --short
+   ```
+
+3. Open or create the MCP configuration JSON used by the instructor. The exact location may vary by lab image, but the JSON shape is similar to this:
+
+   ```json
+   {
+     "servers": {
+       "azure-documentdb-workshop": {
+         "type": "stdio",
+         "command": "python",
+         "args": [
+           "./scripts/mcp_documentdb_server.py"
+         ],
+         "env": {
+           "DOCUMENTDB_DATABASE": "Workshop_DB"
+         }
+       }
+     }
+   }
+   ```
+
+4. Explain the JSON:
+
+   | JSON field | Meaning |
+   |---|---|
+   | `servers` | List of MCP servers VS Code can start |
+   | `azure-documentdb-workshop` | Friendly name of this workshop MCP server |
+   | `type: stdio` | VS Code talks to the MCP server over standard input/output |
+   | `command: python` | Starts the MCP server with Python |
+   | `args` | Points to the local MCP server script |
+   | `env` | Passes safe configuration such as database name |
+
+5. Start or enable the MCP server from VS Code.
+6. Ask Copilot a safe prompt:
+
+   ```text
+   Using the Azure DocumentDB workshop MCP tool, list the collections in my workshop database.
+   ```
+
+7. Copilot calls the MCP tool. The MCP server connects to Azure DocumentDB using local configuration and returns collection names.
+8. Ask another prompt:
+
+   ```powershell
+   Using the Azure DocumentDB workshop MCP tool, count documents in mobiles, support_articles, retail_offers, and supportInc.
+   ```
+
+9. Show that the result matches the validation script:
 
    ```powershell
    python .\scripts\validate_workshop_setup.py
    ```
 
-6. Explain that MCP can expose controlled tools to assistants, while secrets stay in local configuration.
+### What participants should understand
+
+MCP is useful because it gives Copilot a safe, repeatable way to use tools. Instead of pasting secrets or manually copying commands, the user asks a natural-language question and Copilot calls an approved tool.
 
 Safe prompt example:
 
