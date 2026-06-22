@@ -3,17 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from agent_framework.devui import serve
-from agent_framework.openai import OpenAIChatClient
 from dotenv import load_dotenv
-
-from mobile_tools import (
-    find_mobile_offers,
-    get_mobile_details,
-    recommend_mobiles,
-    search_mobiles_by_budget,
-    search_offers_by_retailer,
-)
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -39,6 +29,26 @@ def azure_openai_base_url(value: str) -> str:
 
 
 def build_agents():
+    try:
+        from agent_framework.openai import OpenAIChatClient
+        from mobile_tools import (
+            find_mobile_offers,
+            get_mobile_details,
+            recommend_mobiles,
+            search_mobiles_by_budget,
+            search_offers_by_retailer,
+        )
+    except ModuleNotFoundError as exc:
+        missing = exc.name or "agent_framework"
+        raise RuntimeError(
+            f"Missing Python package: {missing}\n\n"
+            "Run these commands from the repository root with your virtual environment active:\n"
+            "  python -m pip install --upgrade pip\n"
+            "  pip install -r requirements.txt\n\n"
+            "Then run:\n"
+            "  python .\\scripts\\run_ai_agents.py"
+        ) from exc
+
     chat_client = OpenAIChatClient(
         model=require_env("AZURE_OPENAI_CHAT_DEPLOYMENT"),
         base_url=azure_openai_base_url(require_env("AZURE_OPENAI_ENDPOINT")),
@@ -74,6 +84,19 @@ Clearly show retailer, price, availability, and notes such as exchange or EMI of
 
 
 def main() -> None:
+    try:
+        from agent_framework.devui import serve
+    except ModuleNotFoundError as exc:
+        missing = exc.name or "agent_framework"
+        raise RuntimeError(
+            f"Missing Python package: {missing}\n\n"
+            "Run these commands from the repository root with your virtual environment active:\n"
+            "  python -m pip install --upgrade pip\n"
+            "  pip install -r requirements.txt\n\n"
+            "Then run:\n"
+            "  python .\\scripts\\run_ai_agents.py"
+        ) from exc
+
     print("=" * 70)
     print("  Azure DocumentDB Workshop: Mobile Shopping AI Agents")
     print("  This runs from the current repository only. No companion repo is used.")
@@ -95,4 +118,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except RuntimeError as exc:
+        print(f"\nError: {exc}")
+        raise SystemExit(1)

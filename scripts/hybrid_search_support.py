@@ -8,6 +8,14 @@ from openai import AzureOpenAI
 from common import get_database, load_workshop_env, require_env
 
 
+def normalize_scores(results: list[dict], score_field: str) -> dict[str, float]:
+    scores = {item["ticketId"]: float(item.get(score_field, 0) or 0) for item in results}
+    max_score = max(scores.values(), default=0)
+    if max_score <= 0:
+        return {ticket_id: 0.0 for ticket_id in scores}
+    return {ticket_id: score / max_score for ticket_id, score in scores.items()}
+
+
 def text_search(collection, query: str, top_k: int) -> list[dict]:
     return list(
         collection.find(
@@ -69,14 +77,60 @@ def print_results(label: str, results: list[dict], score_field: str) -> None:
     if not results:
         print("No results.")
         return
-    for document in results:
-        print(f"{document.get('ticketId')} | {document.get('title')} | {score_field}: {document.get(score_field)}")
+    for index, document in enumerate(results, 1):
+        print(f"{index}. {document.get('ticketId')} | {document.get('title')} | {score_field}: {document.get(score_field)}")
         print(document.get("description"))
         print("-" * 80)
 
 
+def merge_hybrid_results(text_results: list[dict], vector_results: list[dict]) -> list[dict]:
+    text_normalized = normalize_scores(text_results, "textScore")
+    vector_normalized = normalize_scores(vector_results, "vectorScore")
+
+    by_ticket: dict[str, dict] = {}
+    for item in [*text_results, *vector_results]:
+        by_ticket.setdefault(item["ticketId"], item)
+
+    merged = []
+    for ticket_id, item in by_ticket.items():
+        text_score = text_normalized.get(ticket_id, 0.0)
+        vector_score = vector_normalized.get(ticket_id, 0.0)
+        hybrid_score = (0.6 * text_score) + (0.4 * vector_score)
+        if text_score and vector_score:
+            reason = "matched by exact words and semantic meaning"
+        elif text_score:
+            reason = "matched by full-text words only"
+        else:
+            reason = "matched by semantic vector meaning only"
+        merged.append(
+            {
+                **item,
+                "normalizedTextScore": text_score,
+                "normalizedVectorScore": vector_score,
+                "hybridScore": hybrid_score,
+                "reason": reason,
+            }
+        )
+    return sorted(merged, key=lambda item: item["hybridScore"], reverse=True)
+
+
+def print_hybrid_results(results: list[dict]) -> None:
+    print("\nFinal hybrid-ranked results:")
+    if not results:
+        print("No results.")
+        return
+    for index, item in enumerate(results, 1):
+        print(f"{index}. {item.get('ticketId')} | {item.get('title')}")
+        print(f"   Text contribution: {item['normalizedTextScore']:.3f}")
+        print(f"   Vector contribution: {item['normalizedVectorScore']:.3f}")
+        print(f"   Hybrid score: {item['hybridScore']:.3f}")
+        print(f"   Why selected: {item['reason']}")
+        print(f"   {item.get('description')}")
+        print("-" * 80)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Compare full-text and vector search for a workshop query.")
+    parser = argparse.ArgumentParser(description="Run vector, full-text, and hybrid search for a workshop query.")
     parser.add_argument("--query", required=True)
     parser.add_argument("--top-k", type=int, default=3)
     args = parser.parse_args()
@@ -84,29 +138,29 @@ def main() -> None:
     client, db, _ = get_database()
     try:
         collection = db.supportInc
-        text_results = text_search(collection, args.query, args.top_k)
         vector_results = vector_search(collection, args.query, args.top_k)
+        text_results = text_search(collection, args.query, args.top_k)
     finally:
         client.close()
 
     print(f'Query: "{args.query}"')
-    print("\nThis hybrid demo runs two searches for the same query:")
-    print("1. Full-text search: matches exact words and text relevance.")
-    print("2. Vector search: matches semantic meaning using embeddings.")
-    print("\nIn a production hybrid implementation, both result sets are merged and re-ranked.")
-
-    print_results("Full-text search results", text_results, "textScore")
+    print("\nStep 1 - Vector search")
+    print("Vector search uses embeddings to find records with similar meaning, even when words differ.")
     print_results("Vector search results", vector_results, "vectorScore")
 
-    text_ids = {item.get("ticketId") for item in text_results}
-    vector_ids = {item.get("ticketId") for item in vector_results}
-    overlap = [ticket_id for ticket_id in text_ids.intersection(vector_ids) if ticket_id]
+    print("\nStep 2 - Full-text search")
+    print("Full-text search uses exact words, tokenization, and text relevance scoring.")
+    print_results("Full-text search results", text_results, "textScore")
 
-    print("\nHow this differs from normal vector search:")
-    print("- Normal vector search only shows semantic matches.")
-    print("- This hybrid demo also shows which records matched the exact words from the query.")
-    print("- If the same ticket appears in both lists, it is a strong candidate because it matched by words and meaning.")
-    print(f"- Overlap in this run: {', '.join(sorted(overlap)) if overlap else 'No overlapping tickets'}")
+    print("\nStep 3 - Hybrid search")
+    print("Hybrid search merges both result sets and re-ranks them.")
+    print("Workshop formula: hybridScore = 0.6 * normalizedTextScore + 0.4 * normalizedVectorScore")
+    print_hybrid_results(merge_hybrid_results(text_results, vector_results))
+
+    print("\nWhy this is different:")
+    print("- Vector-only search may include semantically related but weaker matches.")
+    print("- Full-text-only search may miss records that use different words.")
+    print("- Hybrid search promotes records that are strong in both word match and meaning match.")
 
 
 if __name__ == "__main__":

@@ -839,11 +839,24 @@ Run:
 python .\scripts\hybrid_search_support.py --query "password reset login problem"
 ```
 
+The demo intentionally shows search in this order:
+
+1. **Vector search first** - shows what semantic similarity alone returns.
+2. **Full-text search second** - shows what exact/relevant word matching returns.
+3. **Hybrid search third** - merges both result sets and re-ranks them.
+
+The workshop hybrid score is intentionally simple:
+
+```text
+hybridScore = 0.6 * normalizedTextScore + 0.4 * normalizedVectorScore
+```
+
 What the output means:
 
-- The text-search command shows how a word-based query would run.
-- The vector-search results show semantic matches.
-- A production hybrid app usually combines both scores into one ranked list.
+- A record that appears only in vector search is a semantic-only match.
+- A record that appears only in full-text search is a word-only match.
+- A record that appears in both lists is usually stronger because it matched by words and meaning.
+- The final hybrid-ranked list is the actual hybrid result for the demo.
 
 Why hybrid is useful: if a query contains important exact terms like product names, error codes, or ticket IDs, text search helps preserve precision. If the query uses different wording, vector search helps preserve recall.
 
@@ -886,6 +899,12 @@ If retrieval works but answer generation fails with `DeploymentNotFound`, your `
 ## 5.8 Local AI agents
 
 No external repository is used. The agent app runs from this repository only and reads the same `.env`.
+
+If this is the first time you are running the agent after cloning or pulling updates, install dependencies:
+
+```powershell
+pip install -r requirements.txt
+```
 
 Run:
 

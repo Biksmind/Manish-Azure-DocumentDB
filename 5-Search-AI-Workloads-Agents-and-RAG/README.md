@@ -19,6 +19,7 @@ python .\scripts\generate_workshop_embeddings.py
 python .\scripts\create_workshop_indexes.py
 python .\scripts\vector_search_support.py --query "I changed my password and cannot access my account"
 python .\rag_app.py
+pip install -r requirements.txt
 python .\scripts\run_ai_agents.py
 ```
 
