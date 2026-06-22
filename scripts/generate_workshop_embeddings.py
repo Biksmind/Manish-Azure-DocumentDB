@@ -7,6 +7,22 @@ from openai import AzureOpenAI
 from common import get_database, load_workshop_env, require_env
 
 
+def mobile_text(document: dict) -> str:
+    return "\n".join(
+        [
+            f"Title: {document.get('title', '')}",
+            f"Brand: {document.get('brand', '')}",
+            f"Segment: {document.get('segment', '')}",
+            f"Description: {document.get('description', '')}",
+            f"Features: {'; '.join(document.get('features', []))}",
+            f"Use cases: {'; '.join(document.get('useCases', []))}",
+            f"Price INR: {document.get('priceInr', '')}",
+            f"Camera MP: {document.get('cameraMp', '')}",
+            f"Battery mAh: {document.get('batteryMah', '')}",
+        ]
+    )
+
+
 def support_text(document: dict) -> str:
     return "\n".join(
         [
@@ -17,6 +33,15 @@ def support_text(document: dict) -> str:
             f"Priority: {document.get('priority', '')}",
         ]
     )
+
+
+def create_embedding(openai_client: AzureOpenAI, deployment: str, text: str, dimensions: int) -> list[float]:
+    response = openai_client.embeddings.create(
+        model=deployment,
+        input=text,
+        dimensions=dimensions,
+    )
+    return response.data[0].embedding
 
 
 def main() -> None:
@@ -35,20 +60,26 @@ def main() -> None:
 
     client, db, database_name = get_database()
     try:
-        total = 0
-        for document in db.supportInc.find({}, {"embedding": 0}):
-            response = openai_client.embeddings.create(
-                model=embedding_deployment,
-                input=support_text(document),
-                dimensions=dimensions,
+        mobile_total = 0
+        for document in db.mobiles.find({}, {"contentVector": 0}):
+            vector = create_embedding(openai_client, embedding_deployment, mobile_text(document), dimensions)
+            db.mobiles.update_one(
+                {"_id": document["_id"]},
+                {"$set": {"contentVector": vector}},
             )
+            mobile_total += 1
+
+        support_total = 0
+        for document in db.supportInc.find({}, {"embedding": 0}):
+            vector = create_embedding(openai_client, embedding_deployment, support_text(document), dimensions)
             db.supportInc.update_one(
                 {"_id": document["_id"]},
-                {"$set": {"embedding": response.data[0].embedding}},
+                {"$set": {"embedding": vector}},
             )
-            total += 1
+            support_total += 1
 
-        print(f"Generated embeddings for {total} records in {database_name}.supportInc")
+        print(f"Generated embeddings for {mobile_total} records in {database_name}.mobiles.contentVector")
+        print(f"Generated embeddings for {support_total} records in {database_name}.supportInc.embedding")
     finally:
         client.close()
 

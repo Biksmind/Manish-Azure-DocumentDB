@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from openai import AzureOpenAI
+from openai import AzureOpenAI, NotFoundError
 
 from scripts.common import get_database, load_workshop_env, require_env
 
@@ -61,24 +61,31 @@ def build_context(results: list[dict]) -> str:
 
 
 def generate_answer(openai_client: AzureOpenAI, deployment: str, question: str, context: str) -> str:
-    response = openai_client.chat.completions.create(
-        model=deployment,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a workshop support assistant. Answer only from the provided "
-                    "support ticket context. If the context does not contain the answer, "
-                    "say you do not have enough information."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Question:\n{question}\n\nSupport ticket context:\n{context}\n\nAnswer:",
-            },
-        ],
-        temperature=0.2,
-    )
+    try:
+        response = openai_client.chat.completions.create(
+            model=deployment,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a workshop support assistant. Answer only from the provided "
+                        "support ticket context. If the context does not contain the answer, "
+                        "say you do not have enough information."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Question:\n{question}\n\nSupport ticket context:\n{context}\n\nAnswer:",
+                },
+            ],
+            temperature=0.2,
+        )
+    except NotFoundError as exc:
+        raise RuntimeError(
+            "Azure OpenAI chat deployment was not found. Check AZURE_OPENAI_CHAT_DEPLOYMENT "
+            "in .env. It must exactly match the deployment name in Azure OpenAI / AI Foundry. "
+            "If you just created the deployment, wait a few minutes and retry."
+        ) from exc
     return response.choices[0].message.content or ""
 
 
@@ -118,7 +125,13 @@ def main() -> None:
             for item in results:
                 print(f"- {item.get('ticketId')} | {item.get('title')} | Score: {item.get('score')}")
 
-            answer = generate_answer(openai_client, chat_deployment, question, build_context(results))
+            try:
+                answer = generate_answer(openai_client, chat_deployment, question, build_context(results))
+            except RuntimeError as exc:
+                print("\nRAG answer generation failed:")
+                print(exc)
+                print("\nThe retrieval step worked above. Fix the chat deployment setting and run the app again.")
+                continue
             print("\nAnswer:")
             print(answer)
             print("\n" + "-" * 80 + "\n")

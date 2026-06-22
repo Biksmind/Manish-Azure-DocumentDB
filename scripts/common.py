@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,11 @@ def require_env(name: str) -> str:
 
 def get_database():
     load_workshop_env()
+    warnings.filterwarnings(
+        "ignore",
+        message="You appear to be connected to a CosmosDB cluster.*",
+        category=UserWarning,
+    )
     client = MongoClient(require_env("DOCUMENTDB_CONNECTION_STRING"))
     database_name = os.getenv("DOCUMENTDB_DATABASE", "Workshop_DB")
     return client, client[database_name], database_name

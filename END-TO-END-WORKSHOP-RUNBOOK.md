@@ -158,10 +158,12 @@ Use the instructor-provided subscription and resource group. Create a new resour
 | Portal field | Workshop value | Explanation |
 |---|---|---|
 | Subscription | Select your assigned subscription | This controls where the resource is billed |
-| Resource group | Use assigned group, or create one only if confirmed | Keeps workshop resources together |
+| Resource group | Use the assigned resource group. Avoid creating any resource group without instructor confirmation. | Keeps workshop resources together and avoids creating resources in the wrong place |
 | Cluster name | `az-docdb-workshop-<yourname>` | Must be globally unique |
-| Region | `Central US`, or the region provided by instructor | Use the same region for related resources when possible |
+| Region | `Central India`. Confirm with the instructor before choosing any other region. | Use the same region for related resources when possible |
 | MongoDB version | Latest available | Use the default latest version |
+| Admin username | Choose a username you can remember | Keep it safe. You will use it throughout the workshop through the connection string. |
+| Admin password | Choose a strong password | Save it somewhere safe for the session. You will need it if you regenerate or rebuild the connection string. |
 | High availability | Disabled | This is a temporary workshop environment |
 | Cluster tier | Click **Configure**, select **M30**, keep default cores/RAM shown by portal | M30 is used so vector-search labs work consistently |
 | Storage | 32 GB | Enough for this workshop |
@@ -731,6 +733,13 @@ Generate embeddings:
 python .\scripts\generate_workshop_embeddings.py
 ```
 
+This creates vectors in two places:
+
+| Collection | Vector field | Used by |
+|---|---|---|
+| `supportInc` | `embedding` | vector search and RAG |
+| `mobiles` | `contentVector` | MobileAdvisor semantic recommendations |
+
 Verify:
 
 ```javascript
@@ -741,6 +750,15 @@ db.supportInc.findOne(
 ```
 
 The `embedding` field stores the vector for each support record.
+
+You can also verify the mobile catalog vector field:
+
+```javascript
+db.mobiles.findOne(
+  {},
+  { _id: 0, title: 1, contentVector: { $slice: 5 } }
+)
+```
 
 ## 5.4 Create vector index
 
@@ -771,6 +789,26 @@ db.runCommand({
 ```
 
 The `dimensions` value must match `EMBEDDING_DIMENSIONS` in `.env`.
+
+The script also creates a vector index for the mobile agent:
+
+```javascript
+db.runCommand({
+  createIndexes: "mobiles",
+  indexes: [
+    {
+      name: "vector_index",
+      key: { contentVector: "cosmosSearch" },
+      cosmosSearchOptions: {
+        kind: "vector-ivf",
+        similarity: "COS",
+        dimensions: 1536,
+        numLists: 1
+      }
+    }
+  ]
+})
+```
 
 ## 5.5 Run vector search
 
@@ -843,6 +881,8 @@ SUP-1001 | Login failure after password reset
 
 Type `exit` to stop.
 
+If retrieval works but answer generation fails with `DeploymentNotFound`, your `AZURE_OPENAI_CHAT_DEPLOYMENT` value in `.env` does not match the actual chat deployment name in Azure OpenAI / AI Foundry. Fix the deployment name, save `.env`, wait a few minutes if the deployment was just created, and run `python .\rag_app.py` again.
+
 ## 5.8 Local AI agents
 
 No external repository is used. The agent app runs from this repository only and reads the same `.env`.
@@ -859,14 +899,23 @@ Open:
 http://localhost:8080
 ```
 
+You will see a DevUI-style agent experience with two agents:
+
+| Agent | What it does | DocumentDB tools |
+|---|---|---|
+| `MobileAdvisor` | Recommends phones based on need, budget, camera, battery, gaming, productivity, and brand preferences | `recommend_mobiles`, `search_mobiles_by_budget`, `get_mobile_details` |
+| `RetailOfferFinder` | Finds retailers, prices, and availability | `find_mobile_offers`, `search_offers_by_retailer` |
+
 What happens between prompt and response:
 
-1. Browser sends your prompt to the local Python app.
-2. The app reads DocumentDB connection details from `.env`.
-3. `MobileAdvisor` queries the `mobiles` collection.
-4. `RetailOfferFinder` queries the `retail_offers` collection.
-5. The app formats matching database records into a simple response.
-6. The browser displays the answer.
+1. Browser sends your prompt to the local DevUI app.
+2. Azure OpenAI chat model decides which Python tool to call.
+3. The selected tool reads DocumentDB settings from `.env`.
+4. The tool queries Azure DocumentDB.
+5. For natural-language recommendations, the tool generates an embedding and runs vector search on `mobiles.contentVector`.
+6. DocumentDB returns matching mobile catalog or offer records.
+7. The chat model formats the final response in natural language.
+8. DevUI displays the answer.
 
 Try `MobileAdvisor`:
 
@@ -881,6 +930,13 @@ Where can I buy OnePlus 12?
 ```
 
 Stop the app with `Ctrl+C`.
+
+If the app says a vector index or `contentVector` is missing, run:
+
+```powershell
+python .\scripts\generate_workshop_embeddings.py
+python .\scripts\create_workshop_indexes.py
+```
 
 ## 5.9 MCP Server and GitHub Copilot demo
 

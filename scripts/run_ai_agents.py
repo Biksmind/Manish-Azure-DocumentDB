@@ -1,139 +1,97 @@
 from __future__ import annotations
 
-import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.parse import parse_qs
+import os
+from pathlib import Path
 
-from common import get_database
+from agent_framework.devui import serve
+from agent_framework.openai import OpenAIChatClient
+from dotenv import load_dotenv
 
-
-HTML = """
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Azure DocumentDB Workshop Agents</title>
-  <style>
-    body { font-family: Segoe UI, Arial, sans-serif; max-width: 900px; margin: 32px auto; line-height: 1.5; }
-    textarea { width: 100%; height: 90px; }
-    button { padding: 8px 14px; margin-top: 8px; }
-    pre { background: #f5f5f5; padding: 16px; white-space: pre-wrap; }
-  </style>
-</head>
-<body>
-  <h1>Azure DocumentDB Workshop Agents</h1>
-  <p>This app runs from the current repository only. It uses your local .env and Azure DocumentDB collections.</p>
-  <label>Agent</label>
-  <select id="agent">
-    <option>MobileAdvisor</option>
-    <option>RetailOfferFinder</option>
-  </select>
-  <p><textarea id="question">Recommend a phone under 50000 for camera and battery</textarea></p>
-  <button onclick="ask()">Ask</button>
-  <pre id="answer">Answer will appear here.</pre>
-  <script>
-    async function ask() {
-      const body = new URLSearchParams();
-      body.set("agent", document.getElementById("agent").value);
-      body.set("question", document.getElementById("question").value);
-      const response = await fetch("/ask", { method: "POST", body });
-      document.getElementById("answer").textContent = await response.text();
-    }
-  </script>
-</body>
-</html>
-"""
+from mobile_tools import (
+    find_mobile_offers,
+    get_mobile_details,
+    recommend_mobiles,
+    search_mobiles_by_budget,
+    search_offers_by_retailer,
+)
 
 
-def mobile_advisor(db, question: str) -> str:
-    query = question.lower()
-    filters: dict = {}
-    if "under 50000" in query or "below 50000" in query:
-        filters["priceInr"] = {"$lte": 50000}
-    if "premium" in query:
-        filters["segment"] = "Premium"
-    if "budget" in query:
-        filters["segment"] = "Budget"
-
-    projection = {"_id": 0, "title": 1, "brand": 1, "segment": 1, "priceInr": 1, "description": 1}
-    results = list(db.mobiles.find(filters, projection).sort("priceInr", 1).limit(5))
-    if not results:
-        return "No matching phones found in the mobiles collection."
-
-    lines = ["MobileAdvisor found these options:"]
-    for item in results:
-        lines.append(
-            f"- {item.get('title')} ({item.get('brand')}) | {item.get('segment')} | INR {item.get('priceInr')}"
-        )
-    return "\n".join(lines)
+ROOT_DIR = Path(__file__).resolve().parents[1]
+load_dotenv(ROOT_DIR / ".env")
 
 
-def retail_offer_finder(db, question: str) -> str:
-    query = question.lower()
-    filter_doc = {}
-    if "flipkart" in query:
-        filter_doc = {"offers.retailer": {"$regex": "Flipkart", "$options": "i"}}
-    elif "amazon" in query:
-        filter_doc = {"offers.retailer": {"$regex": "Amazon", "$options": "i"}}
-    elif "oneplus" in query:
-        filter_doc = {"title": {"$regex": "OnePlus", "$options": "i"}}
-
-    results = list(db.retail_offers.find(filter_doc, {"_id": 0}).limit(5))
-    if not results:
-        return "No matching retail offers found."
-
-    lines = ["RetailOfferFinder found these offers:"]
-    for item in results:
-        lines.append(f"\n{item.get('title')}")
-        for offer in item.get("offers", [])[:3]:
-            lines.append(
-                f"- {offer.get('retailer')} | INR {offer.get('priceInr')} | {offer.get('availability')}"
-            )
-    return "\n".join(lines)
+def require_env(name: str) -> str:
+    value = os.getenv(name)
+    if not value or "<" in value or ">" in value:
+        raise RuntimeError(f"Update {name} in {ROOT_DIR / '.env'} before running agents.")
+    return value.strip()
 
 
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(HTML.encode("utf-8"))
+def normalize_azure_endpoint(value: str) -> str:
+    value = value.rstrip("/")
+    if value.endswith("/openai/v1"):
+        value = value[: -len("/openai/v1")]
+    return value
 
-    def do_POST(self) -> None:
-        if self.path != "/ask":
-            self.send_error(404)
-            return
 
-        length = int(self.headers.get("Content-Length", "0"))
-        form = parse_qs(self.rfile.read(length).decode("utf-8"))
-        agent = form.get("agent", ["MobileAdvisor"])[0]
-        question = form.get("question", [""])[0]
+def azure_openai_base_url(value: str) -> str:
+    return normalize_azure_endpoint(value) + "/openai/v1"
 
-        client, db, _ = get_database()
-        try:
-            if agent == "RetailOfferFinder":
-                answer = retail_offer_finder(db, question)
-            else:
-                answer = mobile_advisor(db, question)
-        except Exception as exc:
-            answer = f"Error: {exc}"
-        finally:
-            client.close()
 
-        self.send_response(200)
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(answer.encode("utf-8"))
+def build_agents():
+    chat_client = OpenAIChatClient(
+        model=require_env("AZURE_OPENAI_CHAT_DEPLOYMENT"),
+        base_url=azure_openai_base_url(require_env("AZURE_OPENAI_ENDPOINT")),
+        api_key=require_env("AZURE_OPENAI_API_KEY"),
+    )
 
-    def log_message(self, format: str, *args) -> None:
-        return
+    mobile_advisor_agent = chat_client.as_agent(
+        name="MobileAdvisor",
+        instructions="""You are a mobile phone advisor powered by Azure DocumentDB.
+You help users choose mobiles based on needs, budget, camera, battery, gaming,
+productivity, software experience, and brand preferences.
+
+Use recommend_mobiles when the user describes needs in natural language.
+Use search_mobiles_by_budget when the user gives a budget.
+Use get_mobile_details when the user asks about a specific model.
+
+Always explain why each recommendation fits the customer's requirement.""",
+        tools=[recommend_mobiles, search_mobiles_by_budget, get_mobile_details],
+    )
+
+    retail_offer_agent = chat_client.as_agent(
+        name="RetailOfferFinder",
+        instructions="""You help users find retail offers and availability for mobiles.
+
+Use find_mobile_offers when the user asks where to buy a specific mobile.
+Use search_offers_by_retailer when the user asks what is available from a retailer.
+
+Clearly show retailer, price, availability, and notes such as exchange or EMI offers.""",
+        tools=[find_mobile_offers, search_offers_by_retailer],
+    )
+
+    return [mobile_advisor_agent, retail_offer_agent]
 
 
 def main() -> None:
-    server = HTTPServer(("localhost", 8080), Handler)
-    print("Workshop agents are running at http://localhost:8080")
-    print("Press Ctrl+C to stop.")
-    server.serve_forever()
+    print("=" * 70)
+    print("  Azure DocumentDB Workshop: Mobile Shopping AI Agents")
+    print("  This runs from the current repository only. No companion repo is used.")
+    print("=" * 70)
+    print("  Agents:")
+    print("    1. MobileAdvisor      - Semantic mobile recommendations")
+    print("    2. RetailOfferFinder  - Retailer offers and availability")
+    print()
+    print("  Open http://localhost:8080 in your browser")
+    print("  Press Ctrl+C to stop")
+    print("=" * 70)
+
+    serve(
+        entities=build_agents(),
+        auto_open=True,
+        port=8080,
+        auth_enabled=False,
+    )
 
 
 if __name__ == "__main__":

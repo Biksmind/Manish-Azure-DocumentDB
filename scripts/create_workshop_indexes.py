@@ -7,15 +7,15 @@ from pymongo.errors import OperationFailure
 from common import get_database, load_workshop_env
 
 
-def create_vector_index(db, dimensions: int) -> None:
+def create_vector_index(db, collection_name: str, vector_field: str, index_name: str, dimensions: int) -> None:
     try:
         db.command(
             {
-                "createIndexes": "supportInc",
+                "createIndexes": collection_name,
                 "indexes": [
                     {
-                        "name": "support_vector_idx",
-                        "key": {"embedding": "cosmosSearch"},
+                        "name": index_name,
+                        "key": {vector_field: "cosmosSearch"},
                         "cosmosSearchOptions": {
                             "kind": "vector-ivf",
                             "similarity": "COS",
@@ -26,10 +26,10 @@ def create_vector_index(db, dimensions: int) -> None:
                 ],
             }
         )
-        print("Created vector index: supportInc.support_vector_idx")
+        print(f"Created vector index: {collection_name}.{index_name}")
     except OperationFailure as error:
         if "already exists" in str(error) or "IndexOptionsConflict" in str(error):
-            print("Vector index already exists: supportInc.support_vector_idx")
+            print(f"Vector index already exists: {collection_name}.{index_name}")
             return
         raise
 
@@ -47,8 +47,11 @@ def main() -> None:
 
         if db.supportInc.count_documents({"embedding": {"$exists": True}}, limit=1) == 0:
             raise RuntimeError("No supportInc.embedding values found. Run generate_workshop_embeddings.py first.")
+        create_vector_index(db, "supportInc", "embedding", "support_vector_idx", dimensions)
 
-        create_vector_index(db, dimensions)
+        if db.mobiles.count_documents({"contentVector": {"$exists": True}}, limit=1) == 0:
+            raise RuntimeError("No mobiles.contentVector values found. Run generate_workshop_embeddings.py first.")
+        create_vector_index(db, "mobiles", "contentVector", "vector_index", dimensions)
     finally:
         client.close()
 

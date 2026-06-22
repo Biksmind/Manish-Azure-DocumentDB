@@ -14,8 +14,9 @@ This module creates the Azure DocumentDB cluster and connects to it from VS Code
 
 | Portal field | Workshop value |
 |---|---|
-| Resource group | Use assigned group, or create only if instructor confirms |
-| Region | `Central US`, or instructor-provided region |
+| Resource group | Use assigned group. Avoid creating a new resource group without instructor confirmation. |
+| Region | `Central India`. Confirm with instructor before choosing any other region. |
+| Admin username/password | Choose and save them safely for the session. They are used in the connection string. |
 | High availability | Disabled for workshop |
 | Cluster tier | Configure and select `M30` |
 | Storage | 32 GB |
