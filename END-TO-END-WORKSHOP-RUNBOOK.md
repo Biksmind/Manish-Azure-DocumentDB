@@ -582,6 +582,14 @@ db.mobiles.find(
 
 Use this module during Slot 3.
 
+Before starting the hands-on migration steps, watch this short migration demo segment:
+
+```text
+https://youtu.be/OYtmeH0TSm4?t=410
+```
+
+The video shows an example migration flow. After watching the demo, continue with the step-by-step hands-on instructions below.
+
 The instructor or sponsor will provide the temporary source MongoDB connection string during the workshop. Do not commit source credentials into this repository.
 
 ## 4.1 Connect to source MongoDB
