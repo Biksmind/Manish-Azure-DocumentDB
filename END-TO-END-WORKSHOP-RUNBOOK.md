@@ -47,7 +47,86 @@ All scripts use the same `.env` file. You enter DocumentDB and Azure OpenAI deta
 
 # Module 0: Verify prerequisites
 
-Open PowerShell and run:
+## 0.1 Connect to the workshop VM
+
+1. On your local Windows machine, open **Remote Desktop Connection** using either option:
+
+   **Option A: Windows Run**
+
+   Press:
+
+   ```text
+   Windows + R
+   ```
+
+   Type:
+
+   ```text
+   mstsc
+   ```
+
+   Press **Enter**.
+
+   **Option B: Windows Search**
+
+   Press:
+
+   ```text
+   Windows + S
+   ```
+
+   Search for:
+
+   ```text
+   Remote Desktop Connection
+   ```
+
+   Open the app.
+
+2. In **Remote Desktop Connection**, enter the computer name shared with you by email.
+3. Click **Connect**.
+4. Enter the username and password shared with you by email.
+5. Wait for the workshop VM desktop to load.
+
+## 0.2 Sign in to Azure Portal from the VM
+
+After you are connected to the VM:
+
+1. Open a browser.
+2. Go to:
+
+   ```text
+   https://portal.azure.com
+   ```
+
+3. Enter the domain user shared with you by email. Example:
+
+   ```text
+   xxx@mannu2050gmail578.onmicrosoft.com
+   ```
+
+4. Enter the same VM password shared with you by email.
+5. Click **Next**.
+6. When the browser asks for MFA setup, click **Next**.
+
+## 0.3 Set up Microsoft Authenticator
+
+On your phone:
+
+1. Install **Microsoft Authenticator**.
+2. Open the Microsoft Authenticator app.
+3. On the Authenticator home screen, click the QR-code style icon to open the camera.
+4. Scan the QR code shown in the browser on the VM.
+5. Click **Next** in the browser.
+6. Confirm that the domain user is now added to Microsoft Authenticator.
+7. Check the code displayed in the app.
+8. Enter the code in the browser screen and complete sign-in.
+
+The code has a limited expiry time. If it expires, use the new code displayed in the Authenticator app.
+
+## 0.4 Verify local tools on the VM
+
+In your VM, open PowerShell and run:
 
 ```powershell
 code --version
@@ -965,85 +1044,25 @@ python .\scripts\create_workshop_indexes.py
 
 ## 5.9 MCP Server and GitHub Copilot demo
 
-This is an instructor-led demo that shows something special: VS Code can load MCP server definitions from JSON, and Copilot can use those MCP tools to talk to Azure DocumentDB through a controlled local tool layer.
+Since the lab VM will not have GitHub Copilot access inside the VM, this will be an instructor-led demo.
 
-Important idea:
+The instructor will show how MCP can be configured to talk to Azure DocumentDB through a controlled local tool layer.
 
-- Copilot does not need the connection string in the prompt.
-- The MCP server reads configuration from local files or environment variables.
-- The MCP tool performs the database action.
-- Copilot receives only the tool result that the MCP server returns.
+Demo focus:
 
-### Demo flow
+1. Create or show an `mcp.json` configuration.
+2. Start a local MCP server.
+3. Authenticate using local environment configuration instead of pasting secrets into prompts.
+4. Call MCP tools that connect to Azure DocumentDB.
+5. List collections and count documents from the existing workshop database.
 
-1. Open this repository in VS Code.
-2. Confirm `.env` exists locally and is ignored by Git:
+Participants do not need to perform these steps on their lab VM.
 
-   ```powershell
-   git status --short
-   ```
-
-3. Open or create the MCP configuration JSON used by the instructor. The exact location may vary by lab image, but the JSON shape is similar to this:
-
-   ```json
-   {
-     "servers": {
-       "azure-documentdb-workshop": {
-         "type": "stdio",
-         "command": "python",
-         "args": [
-           "./scripts/mcp_documentdb_server.py"
-         ],
-         "env": {
-           "DOCUMENTDB_DATABASE": "Workshop_DB"
-         }
-       }
-     }
-   }
-   ```
-
-4. Explain the JSON:
-
-   | JSON field | Meaning |
-   |---|---|
-   | `servers` | List of MCP servers VS Code can start |
-   | `azure-documentdb-workshop` | Friendly name of this workshop MCP server |
-   | `type: stdio` | VS Code talks to the MCP server over standard input/output |
-   | `command: python` | Starts the MCP server with Python |
-   | `args` | Points to the local MCP server script |
-   | `env` | Passes safe configuration such as database name |
-
-5. Start or enable the MCP server from VS Code.
-6. Ask Copilot a safe prompt:
-
-   ```text
-   Using the Azure DocumentDB workshop MCP tool, list the collections in my workshop database.
-   ```
-
-7. Copilot calls the MCP tool. The MCP server connects to Azure DocumentDB using local configuration and returns collection names.
-8. Ask another prompt:
-
-   ```powershell
-   Using the Azure DocumentDB workshop MCP tool, count documents in mobiles, support_articles, retail_offers, and supportInc.
-   ```
-
-9. Show that the result matches the validation script:
-
-   ```powershell
-   python .\scripts\validate_workshop_setup.py
-   ```
-
-### What participants should understand
-
-MCP is useful because it gives Copilot a safe, repeatable way to use tools. Instead of pasting secrets or manually copying commands, the user asks a natural-language question and Copilot calls an approved tool.
-
-Safe prompt example:
+For the detailed standalone MCP demo flow, refer to:
 
 ```text
-Using the configured workshop environment, show me which collections exist in my database.
+MCP-DEMO-GUIDE.md
 ```
-
-Do not paste connection strings, keys, or passwords into Copilot prompts.
 
 ## 5.10 Performance review
 
